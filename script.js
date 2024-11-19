@@ -44,28 +44,24 @@ const Gameboard = (function() {
         }
     }
 
-    // Display gameboard in console
-    const displayGameboard = () => {
-        let consoleDisplay = ``;
+    const resetBoard = () => {
         for (let row_i=0; row_i < 3; row_i++) {
             for (let col_i=0; col_i < 3; col_i++) {
-                consoleDisplay += `${gameboard[row_i][col_i].getVal()}`;
+                gameboard[row_i][col_i].updateVal(0);
             };
-            consoleDisplay += `\n`;
         };
-        return consoleDisplay;
-    };
+    }
 
-    return { getGameboard, playTurn, checkWinner, displayGameboard };
+    return { getGameboard, playTurn, checkWinner, resetBoard };
 })();
 
 
 // Player Object
-function createPlayer(player) {
+function createPlayer(name) {
     let score = 0;
     const getScore = () => score;
-    const updateScore = () => score++;
-    return { player, getScore, updateScore };
+    const incrementScore = () => score++;
+    return { name, getScore, incrementScore };
 };
 
 Player1 = createPlayer(1);
@@ -84,22 +80,40 @@ const Game = (function() {
         };
     };
 
+    // Event Listeners (For Gameplay)
     const playGame = () => {
-        let turn = 1;
-        let moveCount = 0;
-        while (moveCount < 9) {
-            Gameboard.playTurn(turn, row, col);
-            console.log(Gameboard.displayGameboard());
-            if (Gameboard.checkWinner()) {
-                console.log(turn)
-                return turn
-            };
-            turn = alternateTurn(turn);
-            moveCount++;
-        }
-    };
+        // To stop event listener after game is won / tied
+        const abortController = new AbortController();
 
-    return { playGame }
+        const boardDivs = document.querySelector('#game-container');
+        let moveCounter = 0;
+        let turn = 1;
+        let winnerCrowned = false;
+        boardDivs.addEventListener('click', (e) => {
+            let row_col = e.target.id.split('-');
+            row = row_col[0];
+            col = row_col[1];
+    
+            if (Gameboard.playTurn(turn, row, col) && moveCounter < 9 && !winnerCrowned) {
+                RenderGameboard.updateCellRender(row, col, turn);
+                if (Gameboard.checkWinner()) {
+                    console.log('Winner: ', turn);
+                    winnerCrowned = true;
+                    RenderGameboard.crownWinner(turn);
+                    abortController.abort();
+                }
+                turn = Game.alternateTurn(turn);
+                RenderGameboard.updateTurn(turn);
+                moveCounter++;
+            }
+            if (moveCounter === 9 && !winnerCrowned) {
+                RenderGameboard.displayTie();
+                abortController.abort();
+            };
+        }, {signal: abortController.signal})
+    }
+
+    return { alternateTurn, playGame }
 })();
 
 
@@ -108,14 +122,69 @@ const RenderGameboard = function() {
     const gameboardContainer = document.querySelector('#game-container');
 
     // Initialise gameboard
-    for (let row_i=0; row_i < 3; row_i++) {
-        const rowDiv = document.createElement('div');
-        rowDiv.classList.add('rowDiv')
-        for (let col_i=0; col_i < 3; col_i++) {
-            const columnDiv = document.createElement("div");
-            columnDiv.classList.add("columnDiv", `${row_i}-${col_i}`);
-            rowDiv.appendChild(columnDiv);
+    const initialiseBoard = () => {
+        for (let row_i=0; row_i < 3; row_i++) {
+            const rowDiv = document.createElement('div');
+            rowDiv.classList.add('rowDiv')
+            for (let col_i=0; col_i < 3; col_i++) {
+                const columnDiv = document.createElement("div");
+                columnDiv.classList.add("columnDiv");
+                columnDiv.id = `${row_i}-${col_i}`;
+                rowDiv.appendChild(columnDiv);
+            };
+            gameboardContainer.appendChild(rowDiv);
         };
-        gameboardContainer.appendChild(rowDiv);
+    }
+
+    const clearBoard = () => {
+        for (let row_i=0; row_i < 3; row_i++) {
+            for (let col_i=0; col_i < 3; col_i++) {
+                currDiv = document.getElementById(`${row_i}-${col_i}`);
+                currDiv.textContent = ''
+            };
+        };
+    }
+
+    const updateCellRender = (row, col, turn) => {
+        const selected_cell = document.getElementById(`${row}-${col}`);
+        turn === 1 ? selected_cell.textContent = 'X' : selected_cell.textContent = 'O';
     };
+
+    const updateTurn = (player) => {
+        turnSelector = document.querySelector('#turn-label');
+        turnSelector.textContent = `Turn: ${player}`
+    }
+
+    const crownWinner = (player) => {
+        winnerSelector = document.querySelector('#winner-label');
+        winnerSelector.textContent = `${player} is the winner!`;
+    }
+
+    const displayTie = () => {
+        winnerSelector = document.querySelector('#winner-label');
+        winnerSelector.textContent = `Tie!`;
+    };
+
+    return { initialiseBoard, clearBoard, updateCellRender, updateTurn, crownWinner, displayTie };
 }();
+
+
+
+// Event Listeners to Start / Reset Game
+const startBtn = document.querySelector('#start');
+startBtn.addEventListener('click', () => {
+    RenderGameboard.initialiseBoard();
+    Game.playGame();
+    startBtn.remove();
+});
+const resetBtn = document.querySelector('#reset');
+resetBtn.addEventListener('click', () => {
+    Gameboard.resetBoard();
+    RenderGameboard.clearBoard();
+    Game.playGame();
+})
+
+
+
+// TO FIX LOG:
+// If you reset it in the middle of a game, it will break the flow since the event listener is not disabled

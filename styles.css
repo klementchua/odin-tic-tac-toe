@@ -21,3 +21,11 @@
 .columnDiv:hover {
     background-color: rgb(231, 231, 231);
 }
+
+#reset {
+    display: none;
+}
+
+#start {
+    display: none;
+}

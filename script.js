@@ -20,9 +20,9 @@ const Gameboard = (function() {
     };
 
     // Play one turn, return True if valid move, return False is invalid move
-    const playTurn = (turn, row, col) => {
+    const playTurn = (player, row, col) => {
         if (gameboard[row][col].getVal() === 0) {
-            gameboard[row][col].updateVal(turn);
+            gameboard[row][col].updateVal(player);
             return true;
         } else {
             return false;
@@ -57,15 +57,12 @@ const Gameboard = (function() {
 
 
 // Player Object
-function createPlayer(name) {
+function Player(name) {
     let score = 0;
     const getScore = () => score;
     const incrementScore = () => score++;
     return { name, getScore, incrementScore };
 };
-
-Player1 = createPlayer(1);
-Player2 = createPlayer(2);
 
 
 // Game Module
@@ -84,12 +81,17 @@ const Game = (function() {
     const playGame = () => {
         // To stop event listener after game is won / tied
         const abortController = new AbortController();
+        const resetBtn = document.querySelector('#reset');
 
         const boardDivs = document.querySelector('#game-container');
         let moveCounter = 0;
         let turn = 1;
         let winnerCrowned = false;
+        RenderGameboard.updateTurn(player1.name);
         boardDivs.addEventListener('click', (e) => {
+            let currPlayer, nextPlayer;
+            turn === 1 ? currPlayer = player1 : currPlayer = player2;
+            turn === 1 ? nextPlayer = player2 : nextPlayer = player1;
             let row_col = e.target.id.split('-');
             row = row_col[0];
             col = row_col[1];
@@ -97,17 +99,18 @@ const Game = (function() {
             if (Gameboard.playTurn(turn, row, col) && moveCounter < 9 && !winnerCrowned) {
                 RenderGameboard.updateCellRender(row, col, turn);
                 if (Gameboard.checkWinner()) {
-                    console.log('Winner: ', turn);
                     winnerCrowned = true;
-                    RenderGameboard.crownWinner(turn);
+                    RenderGameboard.crownWinner(currPlayer.name);
+                    resetBtn.style.display = 'inline';
                     abortController.abort();
                 }
                 turn = Game.alternateTurn(turn);
-                RenderGameboard.updateTurn(turn);
+                RenderGameboard.updateTurn(nextPlayer.name);
                 moveCounter++;
             }
             if (moveCounter === 9 && !winnerCrowned) {
                 RenderGameboard.displayTie();
+                resetBtn.style.display = 'inline';
                 abortController.abort();
             };
         }, {signal: abortController.signal})
@@ -143,16 +146,24 @@ const RenderGameboard = function() {
                 currDiv.textContent = ''
             };
         };
+        clearTurn();
+        clearWinner();
     }
 
     const updateCellRender = (row, col, turn) => {
         const selected_cell = document.getElementById(`${row}-${col}`);
+        // Edit this line below if you want to add the SVG for X and Os
         turn === 1 ? selected_cell.textContent = 'X' : selected_cell.textContent = 'O';
     };
 
     const updateTurn = (player) => {
         turnSelector = document.querySelector('#turn-label');
-        turnSelector.textContent = `Turn: ${player}`
+        turnSelector.textContent = `${player}'s Turn`
+    }
+
+    const clearTurn = () => {
+        turnSelector = document.querySelector('#turn-label');
+        turnSelector.textContent = '';
     }
 
     const crownWinner = (player) => {
@@ -165,26 +176,42 @@ const RenderGameboard = function() {
         winnerSelector.textContent = `Tie!`;
     };
 
+    const clearWinner = () => {
+        winnerSelector = document.querySelector('#winner-label');
+        winnerSelector.textContent = '';
+    };
+
     return { initialiseBoard, clearBoard, updateCellRender, updateTurn, crownWinner, displayTie };
 }();
 
 
 
-// Event Listeners to Start / Reset Game
+// Event Listeners to Set Names, Start / Reset Game
+let player1;
+let player2;
+
+const player1Btn = document.querySelector('#player1btn');
+player1Btn.addEventListener('click', () => {
+    player1 = Player(document.querySelector('#player1name').value);
+})
+const player2Btn = document.querySelector('#player2btn');
+player2Btn.addEventListener('click', () => {
+    player2 = Player(document.querySelector('#player2name').value);
+    startBtn.style.display = 'block';
+    document.querySelector('#player-container').remove();
+})
+
 const startBtn = document.querySelector('#start');
 startBtn.addEventListener('click', () => {
     RenderGameboard.initialiseBoard();
     Game.playGame();
     startBtn.remove();
 });
+
 const resetBtn = document.querySelector('#reset');
 resetBtn.addEventListener('click', () => {
+    resetBtn.style.display = 'none';
     Gameboard.resetBoard();
     RenderGameboard.clearBoard();
     Game.playGame();
-})
-
-
-
-// TO FIX LOG:
-// If you reset it in the middle of a game, it will break the flow since the event listener is not disabled
+});
